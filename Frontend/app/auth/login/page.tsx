@@ -1,5 +1,4 @@
 'use client'
-import { getUser } from "@/app/action/getUserInfo";
 import { signIn, signOut } from "next-auth/react"
 import { useState } from "react"
 

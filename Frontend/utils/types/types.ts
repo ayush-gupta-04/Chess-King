@@ -1,28 +1,126 @@
-export type MessageToWebSocketServer = {
-    type : 'INITIALISE_GAME'
+export enum GameCategory {
+    BLITZ = 'blitz',
+    BUTTETZ = 'bulletz',
+    RAPID = 'rapid'
+}
+
+export enum ERROR_CODE {
+    GAME_NOT_FOUND = 'game_not_found',
+    GAME_NOT_STARTED = 'game_not_started',
+    GAME_CODE_WRONG = 'game_code_wrong',
+    GAME_ALREADY_STARTED = 'game_already_started'
+}
+
+
+export enum MatchType {
+    ONLINE = 'online',
+    BOT = 'bot',
+    FRIEND = 'friend'
+}
+
+export enum USER_TYPE {
+    PLAYER = 'player',
+    SPECTATOR = 'spectator'
+}
+
+
+
+
+
+
+
+
+
+export type UserDetails = {
+    id : string ,
+    name : string,
+    rating : number
+}
+
+export type MESSAGE = {
+    from : string,
+    message : string
+}
+
+
+export type INITIALISE_GAME_DATA_TYPE = {
+    category : GameCategory,
+    timeControl : string,
+    isPublic? : boolean,
+    matchType : MatchType
+}
+export type PendingPlayer = {
+    id : string,
+    name : string,
+    rating : number,
+    gameCategory : GameCategory,
+    timeControl : string,
+}
+
+export type NEW_GAME = {
+    white? : {
+        id : string,
+        name : string,
+        rating : number
+    },
+    black? : {
+        id : string, 
+        name : string, 
+        rating : number
+    },
+    gameData : {
+        id : number,
+        category : GameCategory,
+        timeControl : string,
+        isPublic : boolean,
+        matchType : MatchType
+    }
+}
+
+
+
+
+
+
+
+export type OutgoingMessage = {       //done
+    type : 'INITIALISE_GAME',
+    data : INITIALISE_GAME_DATA_TYPE
+
+} | {                         //done
+    type : 'SYNC_BOARD',
+    data : {
+        gameId : number,
+        user : USER_TYPE
+    }
+}  | {                          //done
+    type : "SYNC_MESSAGE",
+    data : {
+        gameId : number,
+    }
 } | {
-    type : 'ADD_MOVE',
+    type : "SYNC_MOVES",      //done
+    data : {
+        gameId : number
+    }
+} | {
+    type : "SEND_MESSAGE",   //done
+    data : {
+        gameId : number,
+        message : string,
+    }
+} | {                      
+    type : 'ADD_MOVE',     //done
     data  : {
         gameId : number,
         from : string,
         to : string
     }
 } | {
-    type : 'JOIN_GAME',
-    data : {
-        gameId : number
-    }
-} | {
-    type : "SEND_MESSAGE",
+    type : "ADD_OTHER_PLAYER",     //done
     data : {
         gameId : number,
-        message : string,
-        time : Date
-    }
-} | {
-    type : "MESSAGE_SYNC",
-    data : {
-        gameId : number,
+        code : string
     }
 }
 
@@ -30,54 +128,68 @@ export type MessageToWebSocketServer = {
 
 
 
-export type MessageFromWebSocketServer = {
-    type : 'GAME_INITIALISED',
+
+export type IncomingMessage = {
+    type : 'GAME_INITIALISED',     //done
     data : {
-        gameId : number
+        gameId : number,
+        code? : string, 
+        success : boolean,
+        message : string,
+        w_name? : string,
+        w_rating? : number,
+        b_name? : string,
+        b_rating? : number
     }
 } | {
-    type : 'GAME_NOT_FOUND',
+    type : 'ERROR',             //done
     data : {
-        error : string
+        code : ERROR_CODE
     }
 } | {
-    type : "INVALID_MOVE",
+    type : 'BOARD_SYNCED',    //done
     data : {
-        error : string
+        fen : string,
+        color? : 'w' | 'b',
+        w_name? : string,
+        w_rating? : number,
+        b_name? : string,
+        b_rating? : number,
+        w_time? : number,
+        b_time? : number
     }
 } | {
-    type : "GAME_OVER",
+    type : "MESSAGE_SYNCED",   //done
     data : {
-        isDraw : boolean,
-        winner : 'w' | 'b' | null
+        messages : MESSAGE[]
     }
 } | {
-    type : "PIECE_MOVE",
+    type : 'MOVES_SYNCED',     //done
+    data : {
+        history : string[]
+    }
+} | {
+    type : "MESSAGE",        //done
+    data : {
+        message : MESSAGE
+    }
+} | {
+    type : 'MOVE_ADDED',    //done
     data : {
         from : string,
         to : string
     }
 } | {
-    type : "SYNCED_POSITION",
+    type : 'GAME_STARTED',    //done
     data : {
-        fen : string,
-        color : 'w'|'b',
-        history : string[]
-    }
-} | {
-    type : "MESSAGE",
-    data : {
-        from : string,
+        success : boolean,
         message : string,
-        time : Date
-    }
-} | {
-    type : "MESSAGE_SYNCED",
-    data : {
-        messages : {
-            from: string;
-            message: string;
-            time: Date;
-        }[]
+        w_name : string,
+        w_rating : number,
+        b_name : string,
+        b_rating : number
     }
 }
+
+
+

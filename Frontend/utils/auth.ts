@@ -11,15 +11,21 @@ export const NEXT_AUTH = {
                 password: { label: "username", type: "text" }
             },
             async authorize(credentials? : {username : string,password : string}){ 
-                if(credentials?.username == 'ayushgupta'){
+                if(credentials?.username == 'ayush'){
                     return {
                         id : '1',
                         name : 'Ayush Gupta',
                     }
                 }
-                else if(credentials?.username == 'otherplayer'){
+                else if(credentials?.username == 'aman'){
                     return {
                         id : "2",
+                        name : 'Aman Kumar'
+                    }
+                }
+                else if(credentials?.username == 'other'){
+                    return {
+                        id : "3",
                         name : 'Magnus Kumar'
                     }
                 }

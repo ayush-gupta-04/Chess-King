@@ -1,0 +1,10 @@
+1. react strict mode wala doubt.
+2. Drag and drop.
+3. chess board arrangement and position of pieces.
+4. absolute and fixed.
+5. background image.
+6. how to have user name on websocket.
+7. max connection of event listeners on ws.
+8. signalling manager.
+9. process.env on client side.
+10. Radio button concept.

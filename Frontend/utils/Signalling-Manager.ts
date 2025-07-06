@@ -1,6 +1,6 @@
-import type { MessageFromWebSocketServer, MessageToWebSocketServer } from "./types/types";
+import type { IncomingMessage,OutgoingMessage } from "./types/types";
 
-const WEBSOCKET_URL = 'ws://localhost:8080'
+
 export class SignalingManager{
     private ws : WebSocket;
     private static instance : SignalingManager;
@@ -11,8 +11,9 @@ export class SignalingManager{
     private initialised : boolean = false;
 
 
-    private constructor(token : string){
-        this.ws = new WebSocket(WEBSOCKET_URL+'?token=' + token);
+    private constructor(id : string){
+        console.log(this.initialised)
+        this.ws = new WebSocket(process.env.NEXT_PUBLIC_WEBSOCKET_URL+'?id=' + id);
         this.bufferedMessages = [];
         this.initialiseEmmision();
     }
@@ -26,6 +27,7 @@ export class SignalingManager{
 
     private initialiseEmmision(){
         this.ws.onopen = () => {
+            console.log(this.bufferedMessages)
             this.initialised = true;
             this.bufferedMessages.forEach(message => {
                 this.ws.send(JSON.stringify(message));
@@ -34,22 +36,25 @@ export class SignalingManager{
         }
 
         this.ws.onmessage = (event) => {
-            const message = JSON.parse(event.data) as MessageFromWebSocketServer ;
+            const message = JSON.parse(event.data) as IncomingMessage ;
             const type = message.type;
             if(this.callbacks[type]){
                 this.callbacks[type].forEach(({callback}) => {
                     if(type == "GAME_INITIALISED"){
-                        callback({
-                            success : true,
-                            data : message.data
-                        })
-                    }else if(type == 'PIECE_MOVE'){
                         callback(message.data)
-                    }else if(type == 'SYNCED_POSITION'){
+                    }else if(type == 'MOVE_ADDED'){
+                        callback(message.data)
+                    }else if(type == 'BOARD_SYNCED'){
                         callback(message.data)
                     }else if(type === 'MESSAGE_SYNCED'){
                         callback(message.data)
                     }else if(type === 'MESSAGE'){
+                        callback(message.data)
+                    }else if(type == 'MOVES_SYNCED'){
+                        callback(message.data)
+                    }else if(type == 'GAME_STARTED'){
+                        callback(message.data)
+                    }else if(type == 'ERROR'){
                         callback(message.data)
                     }
                 })
@@ -59,7 +64,7 @@ export class SignalingManager{
 
 
 
-    public sendMessage(message: MessageToWebSocketServer) {
+    public sendMessage(message: OutgoingMessage) {
         const messageToSend = {
             ...message
         }

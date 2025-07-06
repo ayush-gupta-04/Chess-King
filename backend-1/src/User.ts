@@ -1,20 +1,29 @@
 import { WebSocket } from "ws";
 import { GameManager } from "./GameManager";
-import { IncomingMessageFromClient, OutgoingMessageToClient } from "./types/types";
+import { ERROR_CODE, IncomingMessage , MatchType, OutgoingMessage, USER_TYPE, UserDetails } from "./types/types";
 import { Game } from "./Game";
 import { UserManager } from "./UserManager";
 
 export class User{
     private id : string;
     private ws : WebSocket;
-    private name : string
+    private name : string;
+    private rating : number;
 
-    public  constructor(id : string , ws : WebSocket,name : string){
-        this.id = id;
+    public  constructor(user : UserDetails,ws : WebSocket){
+        this.id = user.id;
         this.ws = ws;
-        this.name = name;
+        this.name = user.name;
+        this.rating = user.rating;
         this.messageListener();
         this.closeListener();
+    }
+    public getAllInfo() : {id : string,name : string,rating : number} {
+        return {
+            id : this.id,
+            name : this.name,
+            rating : this.rating
+        }
     }
     public getId(){
         return this.id;
@@ -27,166 +36,277 @@ export class User{
         return this.name;
     }
 
-    public emit(message : string){
-        this.ws.send(message);
+    public emit(message : OutgoingMessage){
+        this.ws.send(JSON.stringify(message));
     }
-    public reconnectUser(newWs : WebSocket){
-        //replace the old websocket with this new websocket.
-        this.ws.removeAllListeners();
-        this.ws.close();
-        this.ws = newWs;
 
-        //attach Event listeners to new Websocket.
-        this.messageListener();
-        this.closeListener();
-    }
     private messageListener(){
         this.ws.on('message' , this.handleMessage);
     }
     private closeListener(){
         this.ws.on('close',this.handleClose);
     }
-    private handleMessage = (message : string) => {
-        const parsedMessage = JSON.parse(message) as IncomingMessageFromClient;
-        console.log(parsedMessage);
+    private handleClose = () => {
+        console.log("User : " + this.id + " got Disconnected!");
+        this.ws.removeAllListeners();
+        this.ws.close();
+        UserManager.getInstance().deleteUser(this.id);
+    }
+    public handleMessage = (message : string) => {
+        const parsedMessage = JSON.parse(message) as IncomingMessage;
+        console.log(parsedMessage)
         switch (parsedMessage.type){
+            case "INITIALISE_GAME" : 
+                const matchType : MatchType = parsedMessage.data.matchType as MatchType;
+                switch (matchType){
+                    case MatchType.ONLINE :
+                        GameManager.getInstance().addGameViaMatchingEngine(this,parsedMessage.data);
+                    break;
 
-            case 'INITIALISE_GAME' : 
-                GameManager.getInstance().addGame(this);
-                break;
-
-            case "SEND_MESSAGE" :
-                const CurrGame : Game | undefined = GameManager.getInstance().findGame(parsedMessage.data.gameId);
-
-                //1. Store the msg in game's message state.
-                //2. Send the Other PLayer message.
-                if(CurrGame){
-                    const players : string[] = CurrGame.getAllPlayer();
-                    CurrGame.addMessage(this.name,parsedMessage.data.message,parsedMessage.data.time);
-                    players.forEach((playerId) => {
-                        if(playerId != this.id){
-                            UserManager.getInstance().getUser(playerId)?.emit(JSON.stringify({
-                                type : 'MESSAGE',
-                                data : {
-                                    from : this.name,
-                                    message : parsedMessage.data.message,
-                                    time : parsedMessage.data.time
-                                }
-                            }))
-                        }
-                    })
+                    case MatchType.FRIEND :
+                        GameManager.getInstance().addGame(this,parsedMessage.data)
+                    break;
+                    //for bot let's keep it aside now.
                 }
 
+            break;
 
-                break;
+            case "SYNC_BOARD" : 
+                //either this request is coming from the player or the spectator.
+                //if player --> only find the game if he is really player...because this request can also be send by a spectator from page /game/:id
+                //id spectator --> find the game simply...iff game is public.
+                const game_id = parsedMessage.data.gameId;
+                const user = parsedMessage.data.user;
+                const game : Game | undefined = GameManager.getInstance().findGameByUserType(game_id,user,this.id);
+                if(game != undefined){
+                    //if the game was initialised but not started..
+                    //we will throw an error ... that game not started. 
 
-            case "MESSAGE_SYNC" : 
-                const gameData : Game | undefined = GameManager.getInstance().findGame(parsedMessage.data.gameId);
-                if(gameData){
-                    const allMessages = gameData.getMessages();
-                    this.emit(JSON.stringify({
-                        type : "MESSAGE_SYNCED",
-                        data : {
-                            messages : allMessages
-                        }
-                    }))
-                    return;
 
-                }
-                break;
-            case "JOIN_GAME" : 
-                const CurrentGame : Game | undefined = GameManager.getInstance().findGame(parsedMessage.data.gameId);
-                if(CurrentGame){
-                    const gameData = CurrentGame.getCurrentState(this.id);
-                    const message : OutgoingMessageToClient = {
-                        type : "SYNCED_POSITION",
-                        data : {
-                            fen : gameData.board,
-                            color : gameData.color,
-                            history : gameData.history
-                        }
-                    }
-                    this.emit(JSON.stringify(message));
-                    return;
-                }else{
-                    const errorMessage : OutgoingMessageToClient = {
-                        type : 'GAME_NOT_FOUND',
-                        data : {
-                            error : "Game not found!"
-                        }
-                    }
-                    this.emit(JSON.stringify(errorMessage));
-                }
-                break;
-            case 'ADD_MOVE' :
-                const game : Game | undefined = GameManager.getInstance().findGame(parsedMessage.data.gameId);
-                if(game){
+                    //if player -> send the fen + color.
+                    //if spectator -> send the fen bs.
+                    //             -> add the spwctator to the spectator[] in game.
                     try {
-                        const response = game.addMove(this.id,parsedMessage.data.from,parsedMessage.data.to);
-                        const PlayersPlusSpectator : string[] = game.getAllPlayerPlusSpectator();
-                        if(response.isDraw && response.winner == null){
-                            const message : OutgoingMessageToClient = {
-                                type : "GAME_OVER",
-                                data : {
-                                    isDraw : true,
-                                    winner : null
-                                }
-                            }
-                            PlayersPlusSpectator.forEach((id) => {
-                                UserManager.getInstance().getUser(id)?.emit(JSON.stringify(message));
-                            });
-                            return;
-                        }
-                        else if(!response.isDraw && response.winner != null){
-                            const message : OutgoingMessageToClient = {
-                                type : "GAME_OVER",
-                                data : {
-                                    isDraw : false,
-                                    winner : response.winner
-                                }
-                            }
-                            PlayersPlusSpectator.forEach((id) => {
-                                UserManager.getInstance().getUser(id)?.emit(JSON.stringify(message));
-                            });
-                            return;
-                        }else{
-                            const message : OutgoingMessageToClient = {
-                                type : "PIECE_MOVE",
-                                data : {
-                                    from : parsedMessage.data.from,
-                                    to : parsedMessage.data.to
-                                }
-                            }
+                        const {fen , color ,w_name,w_rating,b_name,b_rating,w_time,b_time} = game.getCurrentState(this.id);
+                        switch(user){
+                            case USER_TYPE.PLAYER :
+                                this.emit({
+                                    type : 'BOARD_SYNCED',
+                                    data : {
+                                        fen : fen,
+                                        color : color,
+                                        w_name,
+                                        w_rating,
+                                        b_name,
+                                        b_rating,
+                                        w_time,
+                                        b_time
+                                    }
+                                })
+                            break;
 
-                            PlayersPlusSpectator.forEach((id) => {
-                                if(this.id != id){
-                                    UserManager.getInstance().getUser(id)?.emit(JSON.stringify(message));
+                            case USER_TYPE.SPECTATOR : 
+                                console.log('spectator come')
+                                if(!game.getSpectators().includes(this.id)){
+                                    game.addSpectator(this.id)
                                 }
-                            });
+                                this.emit({
+                                    type : 'BOARD_SYNCED',
+                                    data : {
+                                        fen : fen,
+                                        w_name,
+                                        w_rating,
+                                        b_name,
+                                        b_rating,
+                                        w_time,
+                                        b_time
+                                    }
+                                })
+                            break;
                         }
                     } catch (error) {
                         console.log(error);
-                        const errorMessage : OutgoingMessageToClient = {
-                            type : 'INVALID_MOVE',
-                            data : {
-                                error : "Invalid Move !"
-                            }
+                        if(error instanceof Error){
+                            //this error has occured because the game has not been started.
+                            this.emit({
+                                type : "ERROR",
+                                data : {
+                                    code : error.message as ERROR_CODE
+                                }
+                            })
+                            return;
                         }
-                        this.emit(JSON.stringify(errorMessage));
                     }
                 }else{
-                    const errorMessage : OutgoingMessageToClient = {
-                        type : 'GAME_NOT_FOUND',
+                    console.log("game not found")
+                    //game is not found.
+                    //send the error message.
+                    this.emit({
+                        type : 'ERROR',
                         data : {
-                            error : "Game not found!"
+                            code : ERROR_CODE.GAME_NOT_FOUND,
+                        }
+                    })
+                    return;
+                }
+
+            break;
+
+            case 'SYNC_MESSAGE' : 
+                //get all the messages and emit them.
+                const game1 = GameManager.getInstance().findGame(parsedMessage.data.gameId);
+                if(game1 != undefined){
+                    try {
+                        const allMessages = game1.getAllMessages();
+                        this.emit({
+                            type : 'MESSAGE_SYNCED',
+                            data : {
+                                messages : allMessages
+                            }
+                        })
+                        return;
+                    } catch (error) {
+                        console.log(error);
+                        if(error instanceof Error){
+                            //this error has occured because the game has not been started.
+                            this.emit({
+                                type : "ERROR",
+                                data : {
+                                    code : error.message as ERROR_CODE
+                                }
+                            })
+                            return;
                         }
                     }
-                    this.emit(JSON.stringify(errorMessage));
                 }
+                else{
+                    //game is not found.
+                    //send the error message.
+                    this.emit({
+                        type : 'ERROR',
+                        data : {
+                            code : ERROR_CODE.GAME_NOT_FOUND,
+                        }
+                    })
+                    return;
+                }
+            break;
+
+            case "SEND_MESSAGE" :
+                //will broadcast the message to all players.
+                const currGame = GameManager.getInstance().findGame(parsedMessage.data.gameId);
+                if(currGame != undefined){
+                    currGame.addNewMessage({
+                        from : this.name,
+                        message : parsedMessage.data.message
+                    })
+                    return;
+                }else{
+                    //game is not found.
+                    //send the error message.
+                    this.emit({
+                        type : 'ERROR',
+                        data : {
+                            code : ERROR_CODE.GAME_NOT_FOUND,
+                        }
+                    })
+                    return;
+                }
+            break;
+
+            case "SYNC_MOVES" :
+                //send the history of the move to the user.
+                const game2 = GameManager.getInstance().findGame(parsedMessage.data.gameId);
+                if(game2 != undefined){
+                    try {
+                        const history : string[] = game2.getMovesHistory();
+                        this.emit({
+                            type : 'MOVES_SYNCED',
+                            data : {
+                                history : history
+                            }
+                        })
+                        return;
+                    } catch (error) {
+                        console.log(error);
+                        if(error instanceof Error){
+                            //this error has occured because the game has not been started.
+                            this.emit({
+                                type : "ERROR",
+                                data : {
+                                    code : error.message as ERROR_CODE
+                                }
+                            })
+                            return;
+                        }
+                    }
+                }else{
+                    //game is not found.
+                    //send the error message.
+                    this.emit({
+                        type : 'ERROR',
+                        data : {
+                            code : ERROR_CODE.GAME_NOT_FOUND,
+                        }
+                    })
+                    return;
+                }
+            break;
+
+            case 'ADD_MOVE' : 
+                const game3 = GameManager.getInstance().findGame(parsedMessage.data.gameId);
+                if(game3 != undefined){
+                    try {
+                        game3.addMove(this.id,parsedMessage.data.from,parsedMessage.data.to);
+                    } catch (error) {
+                        console.log(error);
+                        //TODO : should i emit this or not ?
+                    }
+                }else{
+                    //game is not found.
+                    //send the error message.
+                    this.emit({
+                        type : 'ERROR',
+                        data : {
+                            code : ERROR_CODE.GAME_NOT_FOUND,
+                        }
+                    })
+                    return;
+                }
+            break;
+
+            case "ADD_OTHER_PLAYER" : 
+                const game4 = GameManager.getInstance().findGame(parsedMessage.data.gameId);
+                if(game4 != undefined){
+                    // add the other player to the game only if code matches.
+                    try {
+                        game4.addOtherPlayer(this.id,this.name,this.rating,parsedMessage.data.code);
+                    } catch (error) {
+                        console.log(error);
+                        if(error instanceof Error){
+                            //this error has occured because the game code was wrong.
+                            this.emit({
+                                type : "ERROR",
+                                data : {
+                                    code : error.message as ERROR_CODE
+                                }
+                            })
+                            return;
+                        }
+                    }
+                }else{
+                    //game is not found.
+                    //send the error message.
+                    this.emit({
+                        type : 'ERROR',
+                        data : {
+                            code : ERROR_CODE.GAME_NOT_FOUND,
+                        }
+                    })
+                    return;
+                }
+            break;
         }
-        
     }
-    private handleClose = () => {
-        console.log("User : " + this.id + " got Disconnected!");
-    }
+    
 }

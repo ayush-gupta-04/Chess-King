@@ -1,4 +1,4 @@
-import { GetInitialPieceMap, isLight } from "../../../utils/helper-functions";
+import { GetInitialPieceMap, isLight } from "../../utils/helper-functions";
 
 
 export default function FakeChessBoard(){

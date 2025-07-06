@@ -1,3 +1,4 @@
+import { UserDetails } from "./types/types";
 import { User } from "./User";
 import { WebSocket } from "ws";
 export class UserManager{
@@ -15,14 +16,19 @@ export class UserManager{
         return this.instance;
     }
 
-    addUser(userId : string,ws : WebSocket,name : string){
-        const user = new User(userId,ws,name);
-        this.users.set(userId,user);
+    addUser(ws : WebSocket , user : UserDetails){
+        console.log("creating user : " + user.id);
+        const newUser = new User(user,ws);
+        this.users.set(user.id , newUser);
     }
     deleteUser(userId : string){
+        console.log("deleting user " + userId);
         this.users.delete(userId);
     }
-    getUser(userId : string) : User | undefined{
-        return this.users.get(userId)
+    getUser(userId : string | null) : User | undefined{
+        if(userId){
+            return this.users.get(userId)
+        }
+        
     }
 }

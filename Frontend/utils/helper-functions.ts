@@ -24,3 +24,39 @@ export function getRowCol(coordinate : string) : {row : number , col : number}{
         col
     }
 }
+
+
+export function mapFenToBoard(fen : string){
+    const [placement] = fen.split(' ');
+    const rows = placement.split('/');
+    const ranks = ['8','7','6','5','4','3','2','1'];
+    const files = ['a','b','c','d','e','f','g','h'];
+
+    const newPosition : Record<string,string> = {}
+
+    //it will loop from rank 8 to 1.
+    rows.forEach((rank,rankIndex) => {
+        let fileIndex = 0;
+
+        //for every character of row.
+        for(const char of rank){
+
+            //if an empty square..skip.
+            //Digit rpresents empty squares.
+            if(/\d/.test(char)){
+                fileIndex += parseInt(char);
+            }else{
+                const rank = ranks[rankIndex];
+                const file = files[fileIndex];
+                const isWhite = char === char.toUpperCase();
+                const pieceType = char.toLowerCase();
+                const coordinate = `${file}${rank}`;;
+                const piece = (isWhite ? 'w'  :'b' ) + pieceType;
+                newPosition[coordinate] = piece;
+                fileIndex++;
+            }
+        }
+    })
+
+    return newPosition;
+}

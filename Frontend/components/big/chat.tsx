@@ -1,12 +1,12 @@
 'use client'
-import { useEffect, useRef, useState } from "react"
+import { memo, useEffect, useRef, useState } from "react"
 import { SignalingManager } from "../../utils/Signalling-Manager";
-import { Sign } from "crypto";
+import { MESSAGE } from "@/utils/types/types";
 
-export default function Chat({gameId ,userId,userName,token} : {userName : string , gameId : number,userId : string,token : string}){
+const  Chat = memo(({gameId ,userId} : { gameId : number,userId : string}) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [input,setInput] = useState('');
-    const[messages , setMessages] = useState<{from : string,message : string,time : Date}[]>([]);
+    const[messages , setMessages] = useState<MESSAGE[]>([]);
 
     useEffect(( )=> {
         if(scrollRef.current){
@@ -16,52 +16,43 @@ export default function Chat({gameId ,userId,userName,token} : {userName : strin
 
 
     useEffect(() => {
-        SignalingManager.getInstance(token).registerCallback("MESSAGE_SYNCED", (data : { messages : {from:string,message : string,time : Date}[] }) => {
+        //it will sync the messages.
+        SignalingManager.getInstance(userId).registerCallback("MESSAGE_SYNCED", (data : { messages : MESSAGE[] }) => {
             setMessages((m) => {
                 return data.messages; 
             })
-        },'6')
+        },'5')
 
-        SignalingManager.getInstance(token).registerCallback('MESSAGE' , ( data : {from : string,message : string,time : Date}) => {
+        SignalingManager.getInstance(userId).registerCallback('MESSAGE' , ( data : { message : MESSAGE }) => {
             setMessages((m) => {
                 const newMessage = [...m];
-                newMessage.push(data)
+                newMessage.push(data.message)
                 return newMessage;
             })
-        },'7')
+        },'6')
 
-        SignalingManager.getInstance(token).sendMessage({
-            type : "MESSAGE_SYNC",
+
+        SignalingManager.getInstance(userId).sendMessage({
+            type : "SYNC_MESSAGE",
             data : {
                 gameId : gameId
             }
         })
         
         return () => {
-            SignalingManager.getInstance(token).deRegisterCallback("MESSAGE_SYNCED",'6');
-            SignalingManager.getInstance(token).deRegisterCallback('MESSAGE','7');
+            SignalingManager.getInstance(userId).deRegisterCallback("MESSAGE_SYNCED",'5');
+            SignalingManager.getInstance(userId).deRegisterCallback('MESSAGE','6');
         }
     },[])
 
     function clickHandler(message : string){
-        //send the message to other player
-        SignalingManager.getInstance(token).sendMessage({
+        //send the message to all players.
+        SignalingManager.getInstance(userId).sendMessage({
             type : 'SEND_MESSAGE',
             data : {
                 gameId : gameId ,
                 message : message,
-                time : new Date()
             }
-        })
-
-        setMessages((m) => {
-            const newMsgs = [...m];
-            newMsgs.push({
-                from : userName,
-                message : message,
-                time : new Date()
-            })
-            return newMsgs;
         })
     }
 
@@ -77,7 +68,6 @@ export default function Chat({gameId ,userId,userName,token} : {userName : strin
                             <div className="text-gray-200 bg-[#4e5d648c] place-content-center rounded-lg px-2 text-wrap max-w-52">{m.message}</div>
                             <div className="flex flex-col items-end">
                                 <div className="text-gray-300 text-sm">{m.from}</div>
-                                <div className="text-sm text-gray-500">{new Date(m.time).toLocaleTimeString()}</div>
                             </div>
                         </div>
                     )
@@ -89,4 +79,6 @@ export default function Chat({gameId ,userId,userName,token} : {userName : strin
             </form>  
         </div>
     )
-}
+})
+
+export default Chat;

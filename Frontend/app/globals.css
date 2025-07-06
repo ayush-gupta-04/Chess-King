@@ -3,6 +3,7 @@
   --color-base-black-2 : #141413;
   --color-base-black-1 : #262522;
   --color-base-black-0 : #302E2B;
+  --color-base-black-00 : #474642;
   --color-dark-tile : #739552;
   --color-light-tile : #EBECD0;
   --color-green-button : #A2D060; 
@@ -12,4 +13,16 @@
   background-color: var(--base-black);
   width: 20px;
   height: 100vh;
+}
+
+@layer utilities {
+  .no-spinner::-webkit-outer-spin-button,
+  .no-spinner::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .no-spinner {
+    -moz-appearance: textfield;
+  }
 }

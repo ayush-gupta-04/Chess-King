@@ -12,15 +12,19 @@ class UserManager {
         }
         return this.instance;
     }
-    addUser(userId, ws, name) {
-        const user = new User_1.User(userId, ws, name);
-        this.users.set(userId, user);
+    addUser(ws, user) {
+        console.log("creating user : " + user.id);
+        const newUser = new User_1.User(user, ws);
+        this.users.set(user.id, newUser);
     }
     deleteUser(userId) {
+        console.log("deleting user " + userId);
         this.users.delete(userId);
     }
     getUser(userId) {
-        return this.users.get(userId);
+        if (userId) {
+            return this.users.get(userId);
+        }
     }
 }
 exports.UserManager = UserManager;
