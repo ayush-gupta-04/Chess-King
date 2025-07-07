@@ -1,6 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.USER_TYPE = exports.MatchType = exports.ERROR_CODE = exports.GameCategory = void 0;
+exports.USER_TYPE = exports.MatchType = exports.ERROR_CODE = exports.GameCategory = exports.GAME_OVER_REASON = void 0;
+var GAME_OVER_REASON;
+(function (GAME_OVER_REASON) {
+    GAME_OVER_REASON["TIMEOUT"] = "timeout";
+    GAME_OVER_REASON["DRAW"] = "draw";
+    GAME_OVER_REASON["CHECKMATE"] = "checkmate";
+})(GAME_OVER_REASON || (exports.GAME_OVER_REASON = GAME_OVER_REASON = {}));
 var GameCategory;
 (function (GameCategory) {
     GameCategory["BLITZ"] = "blitz";

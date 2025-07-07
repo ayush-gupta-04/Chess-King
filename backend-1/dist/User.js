@@ -14,7 +14,6 @@ class User {
         };
         this.handleMessage = (message) => {
             const parsedMessage = JSON.parse(message);
-            console.log(parsedMessage);
             switch (parsedMessage.type) {
                 case "INITIALISE_GAME":
                     const matchType = parsedMessage.data.matchType;
@@ -42,7 +41,7 @@ class User {
                         //if spectator -> send the fen bs.
                         //             -> add the spwctator to the spectator[] in game.
                         try {
-                            const { fen, color, w_name, w_rating, b_name, b_rating, w_time, b_time } = game.getCurrentState(this.id);
+                            const { fen, color, w_name, w_rating, b_name, b_rating, w_time, b_time, turn } = game.getCurrentState(this.id);
                             switch (user) {
                                 case types_1.USER_TYPE.PLAYER:
                                     this.emit({
@@ -55,7 +54,8 @@ class User {
                                             b_name,
                                             b_rating,
                                             w_time,
-                                            b_time
+                                            b_time,
+                                            turn
                                         }
                                     });
                                     break;
@@ -73,7 +73,8 @@ class User {
                                             b_name,
                                             b_rating,
                                             w_time,
-                                            b_time
+                                            b_time,
+                                            turn
                                         }
                                     });
                                     break;

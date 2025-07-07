@@ -56,6 +56,8 @@ export class SignalingManager{
                         callback(message.data)
                     }else if(type == 'ERROR'){
                         callback(message.data)
+                    }else if(type == 'GAME_OVER'){
+                        callback(message.data)
                     }
                 })
             }

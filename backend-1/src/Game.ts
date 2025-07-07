@@ -1,6 +1,6 @@
 import { Chess } from "chess.js";
 import { UserManager } from "./UserManager";
-import { ERROR_CODE, GameCategory, MatchType, MESSAGE, NEW_GAME, OutgoingMessage } from "./types/types";
+import { ERROR_CODE, GAME_OVER_REASON, GameCategory, MatchType, MESSAGE, NEW_GAME, OutgoingMessage } from "./types/types";
 import { User } from "./User";
 import { getCode } from "./utils/getCode";
 
@@ -24,6 +24,8 @@ export class Game{
     private hasStarted : boolean = false;
     private matchType : MatchType;
     private messages : MESSAGE[] = [];
+    private turnTimeOut : NodeJS.Timeout | null = null;
+    private lastMoveAt : number | null = null;
 
     public constructor(data : NEW_GAME){
         //will initialise everything.
@@ -41,6 +43,7 @@ export class Game{
         this.matchType = data.gameData.matchType;
         this.hasStarted = (data.gameData.matchType == MatchType.ONLINE) || (data.gameData.matchType == MatchType.BOT) ? true : false;
         this.startedAt = this.hasStarted ? Date.now() : null;
+        
 
         //setting the time thingy.
         const time : string[] = data.gameData.timeControl.split('+');
@@ -52,9 +55,42 @@ export class Game{
         this.b_time = baseTime;
         this.increment = inc;
 
+        if(this.hasStarted){
+            this.setTurnTimeout();
+            this.lastMoveAt = Date.now();
+        }
+
         //broadcast game initialised info to players according to the match type.
         this.broadcastInitialisedGameMessage();
-        console.log(this);
+    }
+
+    setTurnTimeout(){
+        const turn = this.chess.turn()
+        const rem_time = turn == 'w' ? this.w_time : this.b_time;
+
+        if(rem_time <= 0){
+            this.handleTimeout(turn);
+            return;
+        }
+
+        //if white's turn .. then after rem_time just do the judgement.
+        this.turnTimeOut = setTimeout(() => {
+            this.handleTimeout(turn);
+        }, rem_time * 1000);
+    }
+
+    handleTimeout(turn : 'w' | 'b'){
+        if(this.turnTimeOut){
+            clearInterval(this.turnTimeOut);
+        }
+        const looser = turn;
+        const winner = turn == 'w' ? 'b' : 'w';
+        //broadcast the winner looser message. 
+        this.broadcastGameOver(GAME_OVER_REASON.TIMEOUT,winner,looser);
+        //TODO : 
+        // calculate the rating thing.
+        // end the game.
+        // remove the game from engine. DB m store rhega ye sb data.
     }
 
     getSpectators(){
@@ -79,6 +115,14 @@ export class Game{
         if(!this.hasStarted){
             throw new Error(ERROR_CODE.GAME_NOT_STARTED)
         }
+        const turn = this.chess.turn();
+        let w_e = 0;
+        let b_e = 0;
+        if(turn == 'w'){
+            w_e = Math.floor((Date.now() - this.lastMoveAt!)/1000);
+        }else{
+            b_e = Math.floor((Date.now() - this.lastMoveAt!)/1000);
+        }
         const fen = this.chess.fen();
         const color : 'w' | 'b' | undefined = id === this.w_id ? 'w' : id === this.b_id ? 'b' : undefined ;
         return {
@@ -88,8 +132,9 @@ export class Game{
             w_rating : this.w_rating,
             b_name : this.b_name , 
             b_rating : this.b_rating,
-            w_time : this.w_time,
-            b_time : this.b_time
+            w_time : this.w_time - w_e,
+            b_time : this.b_time - b_e,
+            turn : turn
         }
     }
     getMovesHistory(){
@@ -128,6 +173,8 @@ export class Game{
         this.hasStarted = true;
         this.startedAt = Date.now();
         this.broadcastStartingGameMessage();
+        this.setTurnTimeout();
+        this.lastMoveAt = Date.now();
     }
 
 
@@ -140,11 +187,75 @@ export class Game{
             throw new Error('Invalid Move !')
         }
 
+
+        const now = Date.now();
+        const elapsed = Math.floor((now - this.lastMoveAt!)/1000);
+        
+
         this.chess.move({from : from , to : to});
-        console.log(this.chess.ascii());
+
+
+        //reduce the w-time and b-time and add increment..since a move is made.
+        if(turn == 'w'){
+            this.w_time = this.w_time - elapsed;
+            this.w_time = this.w_time + this.increment;
+        }else{
+            this.b_time = this.b_time - elapsed;
+            this.b_time = this.b_time + this.increment;
+        }
+
+        //if turn white ka tha and white move chl diya to .. white ka clock clear ho jana chahiye right.
+        this.lastMoveAt = now;
+        if(this.turnTimeOut){
+            clearInterval(this.turnTimeOut);
+        }
+        //if turn w ka tha and w move chl diya .. to abhi setTurnTimeout black ke lie chlna chanhiye.
+        this.setTurnTimeout();
 
         //if move is successfull ... we have to let everyone know the move.
         //broadcast this move to everyone.
+        this.broacastMoveAdded(from ,to);
+        console.log(this.w_time);
+        console.log(this.b_time);
+
+        //it maybe possible that the move leads to draw the match.
+        if(this.chess.isDraw() || this.chess.isDrawByFiftyMoves() || this.chess.isStalemate()){
+            //if w moved and now it's b's turn next ... draw..
+            this.broadcastGameOver(GAME_OVER_REASON.DRAW);
+            //TODO : 
+            // calculate the rating thing.
+            // end the game.
+            // remove the game from engine. DB m store rhega ye sb data.
+        }
+
+        if(this.chess.isCheckmate()){
+            //if w moved and now it's b's turn next ... winner w....therefore winner turn.
+            const winner = turn;
+            const looser = turn == 'w' ? 'b' : 'w';
+            this.broadcastGameOver(GAME_OVER_REASON.CHECKMATE,winner,looser);
+            //TODO : 
+            // calculate the rating thing.
+            // end the game.
+            // remove the game from engine. DB m store rhega ye sb data.
+        }
+    }
+
+    broadcastGameOver(reason : GAME_OVER_REASON,winner? : 'w'|'b' , looser? : 'w' | 'b'){
+        const everyone = [...this.getPlayersId(),...this.getSpectators()];
+        console.log(everyone);
+        everyone.forEach((id) => {
+            UserManager.getInstance().getUser(id || '')?.emit({
+                type : 'GAME_OVER',
+                data : {
+                    reason : reason,
+                    w : winner,
+                    l : looser,
+                }
+            })
+        })
+    }
+
+    broacastMoveAdded(from : string ,to : string){
         const everyone = [...this.getPlayersId(),...this.getSpectators()];
         console.log(everyone);
         everyone.forEach((id) => {
@@ -152,14 +263,13 @@ export class Game{
                 type : 'MOVE_ADDED',
                 data : {
                     from : from,
-                    to : to
+                    to : to,
+                    w_t : this.w_time,
+                    b_t : this.b_time,
+                    turn : this.chess.turn()
                 }
             })
         })
-
-
-        //it maybe possible that the move leads to draw the match.
-        //TODO : match is draw.
     }
 
     broadcastMessage(msg : MESSAGE){

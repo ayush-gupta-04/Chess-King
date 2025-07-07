@@ -47,8 +47,6 @@ class GameManager {
         //we have to find a user with same category , timeControl , +-100 rating.
         //finding the user to make a match.
         if (this.pendingPlayer.length == 0) {
-            console.log(this.pendingPlayer);
-            console.log("No pending player ... making this player pending");
             //make this user a pending player.
             this.pendingPlayer.push({
                 id: id,
@@ -57,7 +55,6 @@ class GameManager {
                 gameCategory: category,
                 timeControl: timeControl
             });
-            console.log(this.pendingPlayer);
             return;
             //don't notify the user yet about this pending situation.
         }
@@ -103,7 +100,6 @@ class GameManager {
         this.games.push(newGame);
         this.pendingPlayer.splice(index, 1);
         console.log("game intiated !");
-        console.log(this.pendingPlayer);
     }
     findGame(id) {
         const game = this.games.find(g => {

@@ -1,5 +1,9 @@
 
-
+export enum GAME_OVER_REASON {
+    TIMEOUT = 'timeout',
+    DRAW = 'draw',
+    CHECKMATE = 'checkmate'
+}
 
 export enum GameCategory {
     BLITZ = 'blitz',
@@ -150,6 +154,13 @@ export type OutgoingMessage = {
         code : ERROR_CODE
     }
 } | {
+    type : 'GAME_OVER',
+    data : {
+        reason : GAME_OVER_REASON,
+        w? : 'w' | 'b',
+        l? : 'w' | 'b',
+    }
+} | {
     type : 'BOARD_SYNCED',    //done
     data : {
         fen : string,
@@ -159,7 +170,8 @@ export type OutgoingMessage = {
         b_name? : string,
         b_rating? : number,
         w_time? : number,
-        b_time? : number
+        b_time? : number,
+        turn : 'w' | 'b'
     }
 } | {
     type : "MESSAGE_SYNCED",   //done
@@ -180,7 +192,10 @@ export type OutgoingMessage = {
     type : 'MOVE_ADDED',    //done
     data : {
         from : string,
-        to : string
+        to : string,
+        w_t : number,
+        b_t : number,
+        turn : 'w' | 'b'
     }
 } | {
     type : 'GAME_STARTED',    //done
